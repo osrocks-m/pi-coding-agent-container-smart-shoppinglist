@@ -1,0 +1,1 @@
+This is the storage directory for processed receipts.
