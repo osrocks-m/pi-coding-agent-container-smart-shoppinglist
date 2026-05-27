@@ -16,7 +16,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     python3 \
     python3-dev \
-    && rm -rf /var/lib/apt/lists/*
+    tesseract-ocr
+
+RUN rm -rf /var/lib/apt/lists/*
+
+ENV PATH="/home/node/.local/bin:${PATH}"
+#ENV UV_LINK_MODE=copy
 
 # -----------------------------------------------------------------------------
 # System Hardening: Purge Privilege Escalation Vectors

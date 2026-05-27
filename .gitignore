@@ -1,6 +1,7 @@
 .pi-data
-workspace
 .env
+**/.venv
 experiments
 dev
 github_token.txt
+.idea
