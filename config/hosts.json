@@ -35,7 +35,8 @@
       "*.openrouter.ai",
       "openrouter.ai",
       "*.huggingface.co",
-      "huggingface.co"
+      "huggingface.co",
+      "api.telegram.org"
     ],
     "allowlist_ips": [
       "127.0.0.1",
