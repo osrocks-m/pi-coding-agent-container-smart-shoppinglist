@@ -3,10 +3,9 @@
 Tests for pdf2md.py – the PDF-to-Markdown conversion script.
 
 Two tiers of tests:
-  A) Unit tests  – mock out subprocess so we can exercise
-     is_scanned() logic without needing the full venv or Tesseract.
-  B) Integration tests  – run the real script against the
-     test-receipt.pdf (requires the venv + all deps to be installed).
+  A) Unit tests  – test is_scanned() logic without needing Tesseract.
+  B) Integration tests  – run the real script against test-receipt.pdf
+     (requires all system deps: pdfminer, fitz, pytesseract, Pillow, tesseract-ocr).
 """
 
 import os
@@ -19,13 +18,12 @@ import unittest
 # ---------------------------------------------------------------------------
 SKILL_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRIPT_DIR = os.path.join(SKILL_DIR, "scripts")
-VENV_DIR = os.path.join(SKILL_DIR, ".venv")
-PYTHON_EXE = os.path.join(VENV_DIR, "bin", "python")
 TEST_PDF = os.path.join(SKILL_DIR, "tests", "test-receipt.pdf")
+PYTHON_EXE = sys.executable  # Use system Python, possibly a venv forced by the IDE
 
 
 def _has_deps() -> bool:
-    """Return True if the venv has all required Python packages."""
+    """Return True if all required Python packages are available system-wide."""
     try:
         result = subprocess.run(
             [PYTHON_EXE, "-c",
@@ -61,7 +59,7 @@ class TestIsScannedHeuristics(unittest.TestCase):
     def _classify(self, total_text: int, has_images: bool, page_count: int) -> bool:
         """
         Inline re-implementation of the is_scanned heuristics from
-        pdf2md.py. Mirrors the logic exactly so we don't need the venv.
+        pdf2md.py. Mirrors the logic exactly so we don't need deps installed.
         """
         MIN_TOTAL_CHARS = 100
         MIN_CHARS_PER_PAGE = 10
@@ -118,7 +116,7 @@ class TestIsScannedHeuristics(unittest.TestCase):
 
 
 # ===================================================================
-# B) INTEGRATION TESTS (need real venv & test PDF)
+# B) INTEGRATION TESTS (need real deps & test PDF)
 # ===================================================================
 
 class TestIntegration(unittest.TestCase):
@@ -126,77 +124,54 @@ class TestIntegration(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        """Skip entire suite if venv or test PDF is missing."""
+        """Skip entire suite if system deps or test PDF is missing."""
         cls._can_run = _has_deps() and os.path.isfile(TEST_PDF)
         if not cls._can_run:
-            skip_msg = "SKIP: venv deps not installed or test PDF missing"
+            skip_msg = "SKIP: system deps not installed or test PDF missing"
             if not os.path.isfile(TEST_PDF):
                 skip_msg += f" (missing {TEST_PDF})"
             elif not _has_deps():
-                skip_msg += " (install deps: run pdf2md.py once or uv pip install ...)"
+                skip_msg += " (install deps: pdfminer.six, pymupdf, pytesseract, Pillow)"
             raise unittest.SkipTest(skip_msg)
 
     def test_pdf_analysis(self):
-        """Run PDF text-analysis inside the venv to understand the test PDF."""
-        code = f"""
-import sys, fitz
-pdf = sys.argv[1]
-doc = fitz.open(pdf)
-total_text = 0
-has_images = False
-page_count = len(doc)
-for page in doc:
-    total_text += len(page.get_text().strip())
-    if page.get_images():
-        has_images = True
-print(f"pages={{page_count}}")
-print(f"text_chars={{total_text}}")
-print(f"has_images={{has_images}}")
-doc.close()
-"""
-        result = subprocess.run(
-            [PYTHON_EXE, "-c", code, TEST_PDF],
-            capture_output=True,
-            text=True,
-        )
-        self.assertEqual(result.returncode, 0, f"Analysis failed: {result.stderr}")
-
-        # Parse results
-        for line in result.stdout.strip().splitlines():
-            print(f"  {line}")
-            if line.startswith("text_chars="):
-                chars = int(line.split("=")[1])
-                self.assertIsInstance(chars, int)
+        """Run PDF text-analysis to understand the test PDF."""
+        import fitz
+        
+        doc = fitz.open(TEST_PDF)
+        total_text = 0
+        has_images = False
+        page_count = len(doc)
+        for page in doc:
+            total_text += len(page.get_text().strip())
+            if page.get_images():
+                has_images = True
+        doc.close()
+        
+        print(f"  pages={page_count}")
+        print(f"  text_chars={total_text}")
+        print(f"  has_images={has_images}")
+        
+        self.assertIsInstance(total_text, int)
 
     def test_convert_pdf_to_markdown(self):
         """Convert test PDF to markdown and check the output file."""
+        from pdfminer.high_level import extract_text
+        
         md_path = TEST_PDF + ".md"
         try:
-            code = f"""
-import sys
-from pdfminer.high_level import extract_text
-
-pdf = sys.argv[1]
-md = sys.argv[2]
-text = extract_text(pdf)
-with open(md, "w", encoding="utf-8") as f:
-    f.write(text)
-print(len(text))
-"""
-            result = subprocess.run(
-                [PYTHON_EXE, "-c", code, TEST_PDF, md_path],
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(result.returncode, 0, f"Convert failed: {result.stderr}")
+            text = extract_text(TEST_PDF)
+            with open(md_path, "w", encoding="utf-8") as f:
+                f.write(text)
+            
             self.assertTrue(os.path.isfile(md_path), f"Markdown not created: {md_path}")
-
+            
             with open(md_path, "r", encoding="utf-8") as f:
-                text = f.read()
-            print(f"  Generated: {len(text)} chars")
-
+                content = f.read()
+            print(f"  Generated: {len(content)} chars")
+            
             # Show a sample of the output
-            preview = text[:300] if len(text) > 300 else text
+            preview = content[:300] if len(content) > 300 else content
             print(f"  Preview: {repr(preview)}")
         finally:
             if os.path.isfile(md_path):

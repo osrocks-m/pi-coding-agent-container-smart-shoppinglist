@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/home/node/.venv/bin/python3
 """
 pdfocr.py -- Convert scanned/image-based PDFs to OCR'd (searchable) PDFs.
 

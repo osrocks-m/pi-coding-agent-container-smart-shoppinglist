@@ -1,22 +1,35 @@
 ---
 name: pdf-to-markdown
-description: Convert text-based PDF files to Markdown using pdfminer.six. Installs dependencies with uv into a dedicated venv when first used.
+description: Convert text-based and scanned PDF files to Markdown using pdfminer.six and Tesseract OCR. Uses system-wide Python packages (no venv required).
 ---
 
 # PDF to Markdown
 
-Convert text-based PDFs to Markdown without needing system tools like `pdftotext` or `pandoc`.
+Convert PDFs to Markdown – both text-based and scanned/image PDFs.
 
 ## How it works
 
-- Uses `uv` to create a dedicated virtual environment under the skill directory
-- Installs `pdfminer.six` via `uv pip install` on first use
-- Extracts text with `pdfminer.high_level.extract_text(...)`
-- Writes one `<basename>.md` per input PDF
+- Uses **system-wide Python packages** pre-installed in the Docker container:
+  - `pdfminer.six` – text extraction from PDFs
+  - `pymupdf` (fitz) – PDF page rendering
+  - `pytesseract` – OCR for scanned documents
+  - `Pillow` – image handling
+  - `tesseract-ocr` – Tesseract CLI tool
+- Automatically detects scanned PDFs (low text content + images)
+- Runs OCR via `pdfocr.py` to create searchable PDF first
+- Extracts final text to Markdown
 
 ## Requirements
 
-`uv` must be available. The script looks for it in your PATH, `~/.local/bin/uv`, `/usr/local/bin/uv`, and `/opt/uv/uv`.
+This skill requires a Docker container with pre-installed dependencies:
+
+```dockerfile
+# System package
+RUN apt-get install -y tesseract-ocr
+
+# Python packages (via uv or pip)
+RUN uv pip install --system pytesseract pdf2image Pillow pdfminer.six pymupdf
+```
 
 ## Usage
 
@@ -40,4 +53,12 @@ Examples:
 ## Output
 
 - One Markdown file per PDF, named after the original file (`.pdf` → `.md`)
+- For scanned PDFs: intermediate `.ocr.pdf` file is created
 - Prints per-file status to stdout
+
+## Architecture Note
+
+This skill uses dependencies that are preinstalled in ~/.venv
+All Python packages are assumed to be pre-installed in the container. This enables:
+- Locked-down network access during runtime
+- Consistent environment across all skills

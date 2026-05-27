@@ -11,7 +11,8 @@ import sys
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 SKILL_DIR = os.path.dirname(SCRIPT_DIR)
-VENV_DIR = os.path.join(SKILL_DIR, ".venv")
+# Use system-wide venv at /home/node/.venv (created in Dockerfile)
+VENV_DIR = os.path.expanduser("~/.venv")
 PYTHON_EXE = os.path.join(VENV_DIR, "bin", "python")
 _UV_CANDIDATES = [
     "uv",

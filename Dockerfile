@@ -18,11 +18,33 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dev \
     tesseract-ocr
 
-RUN rm -rf /var/lib/apt/lists/*
 
-ENV PATH="/home/node/.local/bin:${PATH}"
+# ----------------------------------------------------------------------------
+# Install uv for the PI Coding Agent, this goes together with the python-tooling-policy skill
+# ----------------------------------------------------------------------------
+#RUN su - node -c 'curl -LsSf https://astral.sh/uv/install.sh | sh'
+#ENV PATH="/home/node/.local/bin:${PATH}"
 #ENV UV_LINK_MODE=copy
 
+# ----------------------------------------------------------------------------
+# Install Python OCR dependencies via uv (system-wide for skills)
+# ----------------------------------------------------------------------------
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-full \
+    python3-venv \
+    tesseract-ocr \
+    tesseract-ocr-deu \
+    tesseract-ocr-eng \
+    libtesseract-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create Python venv and install OCR dependencies
+RUN su - node -c 'python3 -m venv /home/node/.venv && \
+    /home/node/.venv/bin/pip install --upgrade pip && \
+    /home/node/.venv/bin/pip install pytesseract pdf2image Pillow pdfminer.six pymupdf'
+
+RUN rm -rf /var/lib/apt/lists/*
 # -----------------------------------------------------------------------------
 # System Hardening: Purge Privilege Escalation Vectors
 # -----------------------------------------------------------------------------

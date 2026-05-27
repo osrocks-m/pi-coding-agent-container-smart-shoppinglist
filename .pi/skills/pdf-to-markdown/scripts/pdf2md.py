@@ -2,6 +2,7 @@
 """
 pdf2md.py -- Convert PDFs to Markdown using pdfminer.six.
 
+Uses venv at /home/node/.venv (created via Dockerfile).
 Automatically detects scanned/image-based PDFs and OCRs them first using
 pdfocr.py (produces <name>.ocr.pdf), then extracts text to Markdown.
 """
@@ -10,97 +11,46 @@ import subprocess
 import sys
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-SKILL_DIR = os.path.dirname(SCRIPT_DIR)
-VENV_DIR = os.path.join(SKILL_DIR, ".venv")
+
+# Use venv at /home/node/.venv (created in Dockerfile)
+VENV_DIR = os.path.expanduser("~/.venv")
 PYTHON_EXE = os.path.join(VENV_DIR, "bin", "python")
-_UV_CANDIDATES = [
-    "uv",
-    os.path.expanduser("~/.local/bin/uv"),
-    "/usr/local/bin/uv",
-    "/opt/uv/uv",
-]
 
-
-UV_EXE = None
-
-
-def _find_uv():
-    global UV_EXE
-    if UV_EXE:
-        return UV_EXE
-    for candidate in _UV_CANDIDATES:
-        try:
-            if subprocess.run(
-                [candidate, "--version"], capture_output=True
-            ).returncode == 0:
-                UV_EXE = candidate
-                return candidate
-        except (FileNotFoundError, OSError):
-            continue
-    return None
-
-
-def _ensure_venv():
-    if not os.path.isfile(PYTHON_EXE):
-        uv = _find_uv()
-        if uv is None:
-            print(
-                "[pdf2md] error: 'uv' is required but not found.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        subprocess.run([uv, "venv", VENV_DIR], check=True)
-
-
-def _ensure_deps():
-    uv = _find_uv()
-
-    # pdfminer.six
+# Check for venv dependencies
+def _check_deps():
+    """Verify required packages are available in venv."""
+    missing = []
+    
     try:
-        subprocess.run(
-            [PYTHON_EXE, "-c", "import pdfminer.high_level"],
-            check=True, capture_output=True,
-        )
+        subprocess.run([PYTHON_EXE, "-c", "import pdfminer.high_level"], check=True, capture_output=True)
     except subprocess.CalledProcessError:
-        subprocess.run(
-            [uv, "pip", "install", "--python", PYTHON_EXE, "pdfminer.six"],
-            check=True,
-        )
-
-    # pymupdf (for PyMuPDF / fitz)
+        missing.append("pdfminer.six")
+    
     try:
-        subprocess.run(
-            [PYTHON_EXE, "-c", "import fitz"],
-            check=True, capture_output=True,
-        )
+        subprocess.run([PYTHON_EXE, "-c", "import fitz"], check=True, capture_output=True)
     except subprocess.CalledProcessError:
-        subprocess.run(
-            [uv, "pip", "install", "--python", PYTHON_EXE, "pymupdf"],
-            check=True,
-        )
-
-    # pytesseract + Pillow (for OCR)
+        missing.append("pymupdf")
+    
     try:
-        subprocess.run(
-            [PYTHON_EXE, "-c", "import pytesseract"],
-            check=True, capture_output=True,
-        )
+        subprocess.run([PYTHON_EXE, "-c", "import pytesseract"], check=True, capture_output=True)
     except subprocess.CalledProcessError:
-        subprocess.run(
-            [uv, "pip", "install", "--python", PYTHON_EXE, "pytesseract"],
-            check=True,
-        )
-
+        missing.append("pytesseract")
+    
     try:
-        subprocess.run(
-            [PYTHON_EXE, "-c", "from PIL import Image"],
-            check=True, capture_output=True,
-        )
+        subprocess.run([PYTHON_EXE, "-c", "from PIL import Image"], check=True, capture_output=True)
     except subprocess.CalledProcessError:
-        subprocess.run(
-            [uv, "pip", "install", "--python", PYTHON_EXE, "Pillow"],
-            check=True,
+        missing.append("Pillow")
+    
+    if missing:
+        print(
+            f"[pdf2md] error: Missing packages in {VENV_DIR}: {', '.join(missing)}",
+            file=sys.stderr,
         )
+        print(
+            "[pdf2md] These should be pre-installed in the Docker container venv.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 
 def is_scanned(pdf_path):
@@ -175,8 +125,7 @@ def main(argv):
         print("Usage: python3 pdf2md.py <pdf> [<pdf> ...]", file=sys.stderr)
         return 1
 
-    _ensure_venv()
-    _ensure_deps()
+    _check_deps()
 
     ok = 0
     for pdf in argv[1:]:
